@@ -11,12 +11,12 @@ module.exports = (eventEmitter) => {
   router.post('/email', async (req, res) => {
     try {
       const validatedPayload = InputValidator.validateAndSanitizePayload('email', req.body);
-      const { to, subject, body, type = 'transactional' } = validatedPayload;
+      const { to, subject, body, type = process.env.DEFAULT_EMAIL_TYPE || 'transactional' } = validatedPayload;
       const result = await emailService.sendEmail(to, subject, body, type);
 
       // Emit karma event
       eventEmitter.emit('communicationSent', {
-        userId: req.body.userId,
+        userId: validatedPayload.userId,
         channel: 'email',
         type: type,
         messageType: subject.includes('Order') ? 'Order Update' : 'Report',
@@ -33,11 +33,11 @@ module.exports = (eventEmitter) => {
   router.post('/whatsapp', async (req, res) => {
     try {
       const validatedPayload = InputValidator.validateAndSanitizePayload('whatsapp', req.body);
-      const { to, message, type = 'delivery' } = validatedPayload;
+      const { to, message, type = process.env.DEFAULT_WHATSAPP_TYPE || 'delivery' } = validatedPayload;
       const result = await whatsappService.sendMessage(to, message, type);
 
       eventEmitter.emit('communicationSent', {
-        userId: req.body.userId,
+        userId: validatedPayload.userId,
         channel: 'whatsapp',
         type: type,
         messageType: type === 'delivery' ? 'Delivery Alert' : 'CRM Alert',
@@ -54,11 +54,11 @@ module.exports = (eventEmitter) => {
   router.post('/telegram', async (req, res) => {
     try {
       const validatedPayload = InputValidator.validateAndSanitizePayload('telegram', req.body);
-      const { chatId, message, type = 'notification' } = validatedPayload;
+      const { chatId, message, type = process.env.DEFAULT_TELEGRAM_TYPE || 'notification' } = validatedPayload;
       const result = await telegramService.sendMessage(chatId, message, type);
 
       eventEmitter.emit('communicationSent', {
-        userId: req.body.userId,
+        userId: validatedPayload.userId,
         channel: 'telegram',
         type: type,
         messageType: type === 'notification' ? 'Quick Notification' : 'Command Response',
@@ -75,11 +75,11 @@ module.exports = (eventEmitter) => {
   router.post('/sms', async (req, res) => {
     try {
       const validatedPayload = InputValidator.validateAndSanitizePayload('sms', req.body);
-      const { to, message, type = 'fallback' } = validatedPayload;
+      const { to, message, type = process.env.DEFAULT_SMS_TYPE || 'fallback' } = validatedPayload;
       const result = await smsService.sendSMS(to, message, type);
 
       eventEmitter.emit('communicationSent', {
-        userId: req.body.userId,
+        userId: validatedPayload.userId,
         channel: 'sms',
         type: type,
         messageType: type === 'fallback' ? 'Fallback Update' : 'Urgent Update',

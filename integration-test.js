@@ -6,6 +6,9 @@ const { EventEmitter } = require('events');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
+// Ensure BASE_URL doesn't end with a slash for consistent path building
+const normalizedBaseUrl = BASE_URL.replace(/\/$/, '');
+
 class IntegrationTester {
   constructor() {
     this.eventEmitter = new EventEmitter();
@@ -20,7 +23,7 @@ class IntegrationTester {
   async testEndpoint(endpoint, payload, description, expectFailure = false) {
     try {
       this.log(`Testing: ${description}`);
-      const response = await axios.post(`${BASE_URL}${endpoint}`, payload, {
+      const response = await axios.post(`${normalizedBaseUrl}${endpoint}`, payload, {
         timeout: 10000 // 10 second timeout
       });
 
@@ -147,7 +150,7 @@ class IntegrationTester {
 
     // Test health check
     try {
-      const healthResponse = await axios.get(`${BASE_URL}/health`, { timeout: 5000 });
+      const healthResponse = await axios.get(`${normalizedBaseUrl}/health`, { timeout: 5000 });
       if (healthResponse.data.status === 'OK') {
         this.log('Health Check - SUCCESS', 'PASS');
         this.testResults.push({ test: 'Health Check', status: 'PASS' });

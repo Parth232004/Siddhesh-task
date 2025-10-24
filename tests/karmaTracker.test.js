@@ -4,6 +4,10 @@ const karmaTracker = require('../services/karmaTracker');
 jest.mock('axios');
 const axios = require('axios');
 
+// Mock environment variables for tests
+process.env.KARMA_TRACKER_BASE_URL = 'https://karma-tracker-api.example.com';
+process.env.KARMA_TRACKER_API_KEY = 'test-api-key';
+
 describe('Karma Tracker Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -168,6 +172,85 @@ describe('Karma Tracker Tests', () => {
       axios.get.mockRejectedValue(new Error('User not found'));
 
       await expect(karmaTracker.getUserKarma('invalid-user')).rejects.toThrow('Failed to get user karma: User not found');
+    });
+
+    test('should handle network timeouts', async () => {
+      axios.post.mockRejectedValue(new Error('Request timeout'));
+
+      const eventData = {
+        userId: 'user-123',
+        channel: 'email',
+        type: 'transactional',
+        messageType: 'Order Update',
+        success: true
+      };
+
+      await expect(karmaTracker.logKarmaEvent(eventData)).rejects.toThrow('Karma event logging failed: Request timeout');
+    });
+
+    test('should handle invalid karma event data', async () => {
+      const mockResponse = { data: { id: 'karma-123', success: true } };
+      axios.post.mockResolvedValue(mockResponse);
+
+      const invalidEventData = {
+        userId: '', // Invalid: empty userId
+        channel: 'email',
+        type: 'transactional',
+        messageType: 'Order Update',
+        success: true
+      };
+
+      const result = await karmaTracker.logKarmaEvent(invalidEventData);
+
+      // Should still work but with empty userId in the event
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/api/karma/events'),
+        expect.objectContaining({
+          userId: '',
+          karmaType: 'SEVA',
+          karmaGain: 2,
+          karmaLoss: 0
+        }),
+        expect.any(Object)
+      );
+    });
+
+    test('should handle all karma message types correctly', async () => {
+      const mockResponse = { data: { id: 'karma-123', success: true } };
+      axios.post.mockResolvedValue(mockResponse);
+
+      const testCases = [
+        { messageType: 'Order Update', expectedGain: 2 },
+        { messageType: 'Delivery Alert', expectedGain: 3 },
+        { messageType: 'CRM Alert', expectedGain: 1 },
+        { messageType: 'Quick Notification', expectedGain: 1 },
+        { messageType: 'Command Response', expectedGain: 2 },
+        { messageType: 'Fallback Update', expectedGain: 1 },
+        { messageType: 'Urgent Update', expectedGain: 4 },
+        { messageType: 'Report', expectedGain: 2 },
+        { messageType: 'Unknown Type', expectedGain: 1 }
+      ];
+
+      for (const testCase of testCases) {
+        const eventData = {
+          userId: 'user-123',
+          channel: 'email',
+          type: 'transactional',
+          messageType: testCase.messageType,
+          success: true
+        };
+
+        await karmaTracker.logKarmaEvent(eventData);
+
+        expect(axios.post).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            karmaGain: testCase.expectedGain,
+            karmaLoss: 0
+          }),
+          expect.any(Object)
+        );
+      }
     });
   });
 

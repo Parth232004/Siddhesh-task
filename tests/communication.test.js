@@ -124,6 +124,53 @@ describe('Communication Controller Tests', () => {
       });
     });
 
+    test('should handle message too long for SMS', async () => {
+      const longMessage = 'a'.repeat(161); // SMS limit is 160 characters
+      mockReq.body = {
+        to: '+1234567890',
+        message: longMessage,
+        userId: 'user-456'
+      };
+
+      const router = controller;
+      const routeHandler = router.stack.find(layer =>
+        layer.route && layer.route.path === '/sms' && layer.route.methods.post
+      ).route.stack[0].handle;
+
+      await routeHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Message must not exceed 160 characters'
+      });
+    });
+
+    test('should handle service timeout', async () => {
+      const emailService = require('../services/emailService');
+      emailService.sendEmail = jest.fn().mockRejectedValue(new Error('Request timeout'));
+
+      mockReq.body = {
+        to: 'test@example.com',
+        subject: 'Test',
+        body: 'Test body',
+        userId: 'user-123'
+      };
+
+      const router = controller;
+      const routeHandler = router.stack.find(layer =>
+        layer.route && layer.route.path === '/email' && layer.route.methods.post
+      ).route.stack[0].handle;
+
+      await routeHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Request timeout'
+      });
+    });
+
     test('should handle missing required fields', async () => {
       mockReq.body = {
         subject: 'Test'
