@@ -17,24 +17,50 @@ class IntegrationTester {
     console.log(`[${timestamp}] [${status}] ${message}`);
   }
 
-  async testEndpoint(endpoint, payload, description) {
+  async testEndpoint(endpoint, payload, description, expectFailure = false) {
     try {
       this.log(`Testing: ${description}`);
-      const response = await axios.post(`${BASE_URL}${endpoint}`, payload);
+      const response = await axios.post(`${BASE_URL}${endpoint}`, payload, {
+        timeout: 10000 // 10 second timeout
+      });
 
       if (response.data.success) {
-        this.log(`${description} - SUCCESS`, 'PASS');
-        this.testResults.push({ test: description, status: 'PASS', details: response.data });
-        return true;
+        if (expectFailure) {
+          this.log(`${description} - UNEXPECTED SUCCESS (expected failure)`, 'FAIL');
+          this.testResults.push({ test: description, status: 'FAIL', error: 'Expected failure but got success' });
+          return false;
+        } else {
+          this.log(`${description} - SUCCESS`, 'PASS');
+          this.testResults.push({ test: description, status: 'PASS', details: response.data });
+          return true;
+        }
       } else {
-        this.log(`${description} - FAILED: ${response.data.error}`, 'FAIL');
-        this.testResults.push({ test: description, status: 'FAIL', error: response.data.error });
-        return false;
+        if (expectFailure) {
+          this.log(`${description} - EXPECTED FAILURE`, 'PASS');
+          this.testResults.push({ test: description, status: 'PASS', details: response.data });
+          return true;
+        } else {
+          this.log(`${description} - FAILED: ${response.data.error}`, 'FAIL');
+          this.testResults.push({ test: description, status: 'FAIL', error: response.data.error });
+          return false;
+        }
       }
     } catch (error) {
-      this.log(`${description} - ERROR: ${error.message}`, 'ERROR');
-      this.testResults.push({ test: description, status: 'ERROR', error: error.message });
-      return false;
+      if (expectFailure && error.response) {
+        // Expected failure with proper error response
+        this.log(`${description} - EXPECTED FAILURE`, 'PASS');
+        this.testResults.push({ test: description, status: 'PASS', error: error.response.data });
+        return true;
+      } else if (expectFailure) {
+        // Expected failure but got network error
+        this.log(`${description} - UNEXPECTED NETWORK ERROR`, 'FAIL');
+        this.testResults.push({ test: description, status: 'FAIL', error: error.message });
+        return false;
+      } else {
+        this.log(`${description} - ERROR: ${error.message}`, 'ERROR');
+        this.testResults.push({ test: description, status: 'ERROR', error: error.message });
+        return false;
+      }
     }
   }
 
@@ -103,16 +129,51 @@ class IntegrationTester {
       'Unified Send Endpoint'
     );
 
+    // Test invalid channel
+    const invalidChannelSuccess = await this.testEndpoint(
+      '/api/communication/send',
+      { channel: 'invalid', message: 'test', userId: 'test-user' },
+      'Invalid Channel Handling',
+      true // expect failure
+    );
+
+    // Test missing required fields
+    const missingFieldsSuccess = await this.testEndpoint(
+      '/api/communication/email',
+      { subject: 'Test' }, // missing required fields
+      'Missing Required Fields Handling',
+      true // expect failure
+    );
+
     // Test health check
     try {
-      const healthResponse = await axios.get(`${BASE_URL}/health`);
+      const healthResponse = await axios.get(`${BASE_URL}/health`, { timeout: 5000 });
       if (healthResponse.data.status === 'OK') {
         this.log('Health Check - SUCCESS', 'PASS');
         this.testResults.push({ test: 'Health Check', status: 'PASS' });
+      } else {
+        this.log('Health Check - FAILED: Invalid response', 'FAIL');
+        this.testResults.push({ test: 'Health Check', status: 'FAIL', error: 'Invalid health response' });
       }
     } catch (error) {
       this.log('Health Check - FAILED', 'FAIL');
       this.testResults.push({ test: 'Health Check', status: 'FAIL', error: error.message });
+    }
+
+    // Test service unavailability (if APIs are configured)
+    if (process.env.ZOHO_EMAIL) {
+      const serviceUnavailableSuccess = await this.testEndpoint(
+        '/api/communication/email',
+        {
+          to: 'invalid-email-that-should-fail@example.com',
+          subject: 'Service Unavailability Test',
+          body: 'This should test service error handling',
+          type: 'transactional',
+          userId: 'test-user-service-error'
+        },
+        'Service Unavailability Handling',
+        true // expect failure due to invalid email/service issues
+      );
     }
 
     // Summary

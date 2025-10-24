@@ -4,12 +4,14 @@ const emailService = require('../services/emailService');
 const whatsappService = require('../services/whatsappService');
 const telegramService = require('../services/telegramService');
 const smsService = require('../services/smsService');
+const InputValidator = require('../utils/inputValidator');
 
 module.exports = (eventEmitter) => {
   // Send email
   router.post('/email', async (req, res) => {
     try {
-      const { to, subject, body, type = 'transactional' } = req.body;
+      const validatedPayload = InputValidator.validateAndSanitizePayload('email', req.body);
+      const { to, subject, body, type = 'transactional' } = validatedPayload;
       const result = await emailService.sendEmail(to, subject, body, type);
 
       // Emit karma event
@@ -30,7 +32,8 @@ module.exports = (eventEmitter) => {
   // Send WhatsApp message
   router.post('/whatsapp', async (req, res) => {
     try {
-      const { to, message, type = 'delivery' } = req.body;
+      const validatedPayload = InputValidator.validateAndSanitizePayload('whatsapp', req.body);
+      const { to, message, type = 'delivery' } = validatedPayload;
       const result = await whatsappService.sendMessage(to, message, type);
 
       eventEmitter.emit('communicationSent', {
@@ -50,7 +53,8 @@ module.exports = (eventEmitter) => {
   // Send Telegram message
   router.post('/telegram', async (req, res) => {
     try {
-      const { chatId, message, type = 'notification' } = req.body;
+      const validatedPayload = InputValidator.validateAndSanitizePayload('telegram', req.body);
+      const { chatId, message, type = 'notification' } = validatedPayload;
       const result = await telegramService.sendMessage(chatId, message, type);
 
       eventEmitter.emit('communicationSent', {
@@ -70,7 +74,8 @@ module.exports = (eventEmitter) => {
   // Send SMS
   router.post('/sms', async (req, res) => {
     try {
-      const { to, message, type = 'fallback' } = req.body;
+      const validatedPayload = InputValidator.validateAndSanitizePayload('sms', req.body);
+      const { to, message, type = 'fallback' } = validatedPayload;
       const result = await smsService.sendSMS(to, message, type);
 
       eventEmitter.emit('communicationSent', {
@@ -90,21 +95,27 @@ module.exports = (eventEmitter) => {
   // Unified send endpoint
   router.post('/send', async (req, res) => {
     try {
-      const { channel, ...messageData } = req.body;
+      const validatedPayload = InputValidator.validateAndSanitizePayload('unified', req.body);
+      const { channel, ...messageData } = validatedPayload;
       let result;
+      let messageType;
 
       switch (channel) {
         case 'email':
           result = await emailService.sendEmail(messageData.to, messageData.subject, messageData.body, messageData.type);
+          messageType = messageData.subject && messageData.subject.includes('Order') ? 'Order Update' : 'Report';
           break;
         case 'whatsapp':
           result = await whatsappService.sendMessage(messageData.to, messageData.message, messageData.type);
+          messageType = messageData.type === 'delivery' ? 'Delivery Alert' : 'CRM Alert';
           break;
         case 'telegram':
           result = await telegramService.sendMessage(messageData.chatId, messageData.message, messageData.type);
+          messageType = messageData.type === 'notification' ? 'Quick Notification' : 'Command Response';
           break;
         case 'sms':
           result = await smsService.sendSMS(messageData.to, messageData.message, messageData.type);
+          messageType = messageData.type === 'fallback' ? 'Fallback Update' : 'Urgent Update';
           break;
         default:
           throw new Error('Invalid channel specified');
@@ -114,7 +125,7 @@ module.exports = (eventEmitter) => {
         userId: messageData.userId,
         channel: channel,
         type: messageData.type || 'general',
-        messageType: messageData.messageType || 'General Message',
+        messageType: messageType || 'General Message',
         success: true
       });
 

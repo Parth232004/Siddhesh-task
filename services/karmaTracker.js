@@ -86,41 +86,6 @@ class KarmaTracker {
     };
   }
 
-  // Sample karmaEvent.post() function using Siddhesh's endpoint
-  async karmaEventPost(eventData) {
-    // This is a sample implementation based on Siddhesh's karma tracker
-    // Replace with actual endpoint from https://github.com/blackholeinfiverse72-alt/karma-tracker
-
-    const karmaEvent = {
-      user_id: eventData.userId,
-      event_type: 'communication',
-      karma_points: eventData.success ? this.calculateKarmaPoints(eventData) : -1,
-      description: `Communication event: ${eventData.messageType} via ${eventData.channel}`,
-      metadata: {
-        channel: eventData.channel,
-        communication_type: eventData.type,
-        message_type: eventData.messageType,
-        success: eventData.success,
-        timestamp: new Date().toISOString()
-      }
-    };
-
-    try {
-      // Assuming Siddhesh's API endpoint structure
-      const response = await axios.post(`${this.baseURL}/karma/events`, karmaEvent, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('karmaEvent.post() failed:', error);
-      throw error;
-    }
-  }
-
   // Calculate karma points based on event type
   calculateKarmaPoints(eventData) {
     const karmaMatrix = {

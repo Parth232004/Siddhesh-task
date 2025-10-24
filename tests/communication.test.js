@@ -1,6 +1,7 @@
 const { EventEmitter } = require('events');
 const communicationController = require('../controllers/communicationController');
 const karmaTracker = require('../services/karmaTracker');
+const InputValidator = require('../utils/inputValidator');
 
 // Mock services
 jest.mock('../services/emailService');
@@ -98,6 +99,48 @@ describe('Communication Controller Tests', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
         error: 'SMTP Error'
+      });
+    });
+
+    test('should handle invalid email validation', async () => {
+      mockReq.body = {
+        to: 'invalid-email',
+        subject: 'Test',
+        body: 'Test body',
+        userId: 'user-123'
+      };
+
+      const router = controller;
+      const routeHandler = router.stack.find(layer =>
+        layer.route && layer.route.path === '/email' && layer.route.methods.post
+      ).route.stack[0].handle;
+
+      await routeHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Invalid recipient email format'
+      });
+    });
+
+    test('should handle missing required fields', async () => {
+      mockReq.body = {
+        subject: 'Test'
+        // missing to, body, userId
+      };
+
+      const router = controller;
+      const routeHandler = router.stack.find(layer =>
+        layer.route && layer.route.path === '/email' && layer.route.methods.post
+      ).route.stack[0].handle;
+
+      await routeHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Recipient email (to) is required'
       });
     });
   });
@@ -251,7 +294,49 @@ describe('Communication Controller Tests', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Invalid channel specified'
+        error: 'Invalid channel. Must be one of: email, whatsapp, telegram, sms'
+      });
+    });
+
+    test('should handle invalid phone number in WhatsApp', async () => {
+      mockReq.body = {
+        to: 'invalid-phone',
+        message: 'Test message',
+        userId: 'user-456'
+      };
+
+      const router = controller;
+      const routeHandler = router.stack.find(layer =>
+        layer.route && layer.route.path === '/whatsapp' && layer.route.methods.post
+      ).route.stack[0].handle;
+
+      await routeHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Invalid phone number format. Use international format (e.g., +1234567890)'
+      });
+    });
+
+    test('should handle invalid chat ID in Telegram', async () => {
+      mockReq.body = {
+        chatId: 'not-a-number',
+        message: 'Test message',
+        userId: 'user-789'
+      };
+
+      const router = controller;
+      const routeHandler = router.stack.find(layer =>
+        layer.route && layer.route.path === '/telegram' && layer.route.methods.post
+      ).route.stack[0].handle;
+
+      await routeHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Chat ID must be numeric'
       });
     });
   });

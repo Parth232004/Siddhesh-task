@@ -3,9 +3,21 @@ const express = require('express');
 const { EventEmitter } = require('events');
 const communicationController = require('./controllers/communicationController');
 const karmaTracker = require('./services/karmaTracker');
+const envValidator = require('./utils/envValidator');
+
+// Validate environment variables at startup
+try {
+  envValidator.validate();
+  const configSummary = envValidator.getConfigSummary();
+  console.log('🚀 Starting Logistics Manager Communication Service');
+  console.log('Configuration Summary:', JSON.stringify(configSummary, null, 2));
+} catch (error) {
+  console.error('❌ Environment validation failed:', error.message);
+  process.exit(1);
+}
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT) || 3000;
 
 // Middleware
 app.use(express.json());
