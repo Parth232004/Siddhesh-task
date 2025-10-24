@@ -36,34 +36,7 @@ class KarmaTracker {
 
     // Determine karma based on message type and success
     if (success) {
-      switch (messageType) {
-        case 'Order Update':
-          karmaGain = 2;
-          break;
-        case 'Delivery Alert':
-          karmaGain = 3;
-          break;
-        case 'CRM Alert':
-          karmaGain = 1;
-          break;
-        case 'Quick Notification':
-          karmaGain = 1;
-          break;
-        case 'Command Response':
-          karmaGain = 2;
-          break;
-        case 'Fallback Update':
-          karmaGain = 1;
-          break;
-        case 'Urgent Update':
-          karmaGain = 4;
-          break;
-        case 'Report':
-          karmaGain = 2;
-          break;
-        default:
-          karmaGain = 1;
-      }
+      karmaGain = this.calculateKarmaPoints(eventData);
     } else {
       // Failed communications result in karma loss
       karmaLoss = -1;
@@ -101,6 +74,7 @@ class KarmaTracker {
 
     return karmaMatrix[eventData.messageType] || 1;
   }
+
 
   // Get user's karma balance
   async getUserKarma(userId) {
